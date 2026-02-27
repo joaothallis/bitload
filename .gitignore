@@ -10,3 +10,6 @@ devenv.local.yaml
 .pre-commit-config.yaml
 
 data/
+
+# generated node status reports
+*-status.txt
