@@ -1,17 +1,41 @@
 import http from 'k6/http';
 import { sleep } from 'k6';
 import encoding from 'k6/encoding';
-import { Trend } from 'k6/metrics';
+import { Trend, Rate } from 'k6/metrics';
 
 export const options = {
-  vus: 10,
-  duration: '20s',
+  scenarios: {
+    tx_blast: {
+      executor: 'ramping-arrival-rate',
+      startRate: 50,
+      timeUnit: '1s',
+      preAllocatedVUs: 200,
+      maxVUs: 2000,
+      stages: [
+        { duration: '1m', target: 200 },
+        { duration: '2m', target: 500 },
+        { duration: '2m', target: 1000 },
+        { duration: '1m', target: 2000 },
+        { duration: '30s', target: 0 }
+      ],
+      gracefulStop: '30s'
+    }
+  },
+  thresholds: {
+    send_success_rate: ['rate>0.95'],
+    http_req_failed: ['rate<0.10']
+  }
 };
 
 const propagationTrend = new Trend('propagation_latency');
+const sendSuccessRate = new Rate('send_success_rate');
 
 const RPC_A = __ENV.RPC_A_URL || "http://127.0.0.1:18443";
 const RPC_B = __ENV.RPC_B_URL || "http://127.0.0.1:18446";
+const WALLET_NAME = __ENV.WALLET_NAME || "loadtest";
+const RPC_A_WALLET = `${RPC_A}/wallet/${encodeURIComponent(WALLET_NAME)}`;
+const MIN_TRUSTED_BALANCE = Number(__ENV.MIN_TRUSTED_BALANCE || "1");
+const TOP_UP_BLOCKS = Number(__ENV.TOP_UP_BLOCKS || "101");
 
 const COOKIE_A = __ENV.RPC_A_COOKIE || ".devenv/state/bitcoin-node-1/regtest/.cookie";
 const COOKIE_B = __ENV.RPC_B_COOKIE || ".devenv/state/bitcoin-node-2/regtest/.cookie";
@@ -78,46 +102,59 @@ function rpc(url, headers, method, params = []) {
 export function setup() {
   console.log("Setting up regtest environment...");
 
-  try {
-    rpc(RPC_A, AUTH_A_HEADERS, "createwallet", ["loadtest"]);
-  } catch (e) {
-    // Ignore "already exists"
+  const loadedWallets = rpc(RPC_A, AUTH_A_HEADERS, "listwallets");
+  if (!loadedWallets.includes(WALLET_NAME)) {
+    try {
+      rpc(RPC_A, AUTH_A_HEADERS, "loadwallet", [WALLET_NAME]);
+    } catch (e) {
+      if (e.message.includes("not found")) {
+        rpc(RPC_A, AUTH_A_HEADERS, "createwallet", [WALLET_NAME]);
+      } else if (!e.message.includes("already loaded")) {
+        throw e;
+      }
+    }
   }
 
-  const address = rpc(RPC_A, AUTH_A_HEADERS, "getnewaddress");
-
-  rpc(RPC_A, AUTH_A_HEADERS, "generatetoaddress", [101, address]);
+  const address = rpc(RPC_A_WALLET, AUTH_A_HEADERS, "getnewaddress");
+  const balances = rpc(RPC_A_WALLET, AUTH_A_HEADERS, "getbalances");
+  const trustedBalance = balances.mine ? balances.mine.trusted : 0;
+  if (trustedBalance < MIN_TRUSTED_BALANCE) {
+    rpc(RPC_A, AUTH_A_HEADERS, "generatetoaddress", [TOP_UP_BLOCKS, address]);
+  }
 
   return { address };
 }
 
 export default function (data) {
-  // Send transaction
-  const txid = rpc(RPC_A, AUTH_A_HEADERS, "sendtoaddress", [
-    data.address,
-    0.1,
-    "",
-    "",
-    false,
-    false,
-    null,
-    "unset",
-    null,
-    1.0,
-    false
-  ]);
+  try {
+    const txid = rpc(RPC_A_WALLET, AUTH_A_HEADERS, "sendtoaddress", [
+      data.address,
+      0.001,
+      "",
+      "",
+      false,
+      false,
+      null,
+      "unset",
+      null,
+      1.0,
+      false
+    ]);
+    sendSuccessRate.add(true);
 
-  const start = Date.now();
-
-  // Poll node B for propagation
-  while (true) {
-    const mempool = rpc(RPC_B, AUTH_B_HEADERS, "getrawmempool");
-    if (mempool.includes(txid)) {
-      const latency = Date.now() - start;
-      propagationTrend.add(latency);
-      break;
+    // Optional: measure propagation without blocking load generation.
+    if (__ENV.CHECK_PROPAGATION === "1") {
+      const start = Date.now();
+      for (let i = 0; i < 20; i++) {
+        const mempool = rpc(RPC_B, AUTH_B_HEADERS, "getrawmempool");
+        if (mempool.includes(txid)) {
+          propagationTrend.add(Date.now() - start);
+          break;
+        }
+        sleep(0.05);
+      }
     }
-
-    sleep(0.05);
+  } catch (e) {
+    sendSuccessRate.add(false);
   }
 }
