@@ -35,8 +35,9 @@ const RPC_A = __ENV.RPC_A_URL || "http://127.0.0.1:18443";
 const RPC_B = __ENV.RPC_B_URL || "http://127.0.0.1:18446";
 const WALLET_NAME = __ENV.WALLET_NAME || "loadtest";
 const RPC_A_WALLET = `${RPC_A}/wallet/${encodeURIComponent(WALLET_NAME)}`;
-const MIN_TRUSTED_BALANCE = Number(__ENV.MIN_TRUSTED_BALANCE || "5000");
+const MIN_TRUSTED_BALANCE = Number(__ENV.MIN_TRUSTED_BALANCE || "1");
 const TOP_UP_BLOCKS = Number(__ENV.TOP_UP_BLOCKS || "300");
+const AUTO_TOP_UP = (__ENV.AUTO_TOP_UP || "1") === "1";
 const TX_AMOUNT = Number(__ENV.TX_AMOUNT || "0.00001");
 const FEE_RATE = Number(__ENV.FEE_RATE || "1.0");
 
@@ -126,9 +127,13 @@ export function setup() {
   const balances = rpc(RPC_A_WALLET, AUTH_A_HEADERS, "getbalances");
   const trustedBalance = balances.mine ? balances.mine.trusted : 0;
   console.log(`Trusted wallet balance: ${trustedBalance} BTC`);
-  if (trustedBalance < MIN_TRUSTED_BALANCE) {
+  if (trustedBalance < MIN_TRUSTED_BALANCE && AUTO_TOP_UP) {
     console.log(`Topping up wallet with ${TOP_UP_BLOCKS} blocks...`);
     rpc(RPC_A, AUTH_A_HEADERS, "generatetoaddress", [TOP_UP_BLOCKS, address]);
+  } else if (trustedBalance < MIN_TRUSTED_BALANCE) {
+    console.log(
+      "Wallet balance below threshold and AUTO_TOP_UP is disabled; setup will continue without mining."
+    );
   }
 
   return { address };
