@@ -37,6 +37,16 @@ Use this command to follow `process-compose` logs:
 tail -f .devenv/state/process-compose/process-compose.log
 ```
 
+## Reset local state
+
+To clear local node state, logs, and process-compose state:
+
+```bash
+pkill -f "bitcoind -regtest -datadir=.*/bitload/.devenv/state/bitcoin-node-1" || true
+pkill -f "bitcoind -regtest -datadir=.*/bitload/.devenv/state/bitcoin-node-2" || true
+rm -rf .devenv/state/bitcoin-node-1 .devenv/state/bitcoin-node-2 .devenv/state/process-compose
+```
+
 ## Test configuration
 
 The load test reads environment variables (all optional):
@@ -62,6 +72,12 @@ For a quick rerun without any setup mining, use:
 
 ```bash
 k6 run -e MIN_TRUSTED_BALANCE=0 script.js
+```
+
+If you want almost no setup delay after first funding:
+
+```bash
+k6 run -e MIN_TRUSTED_BALANCE=1 -e TOP_UP_BLOCKS=101 script.js
 ```
 
 ## Node status report script

@@ -4,6 +4,7 @@ import encoding from 'k6/encoding';
 import { Trend, Rate } from 'k6/metrics';
 
 export const options = {
+  setupTimeout: '10m',
   scenarios: {
     tx_blast: {
       executor: 'ramping-arrival-rate',
@@ -12,11 +13,11 @@ export const options = {
       preAllocatedVUs: 200,
       maxVUs: 2000,
       stages: [
-        { duration: '1m', target: 200 },
-        { duration: '2m', target: 500 },
-        { duration: '2m', target: 1000 },
-        { duration: '1m', target: 2000 },
-        { duration: '30s', target: 0 }
+        { duration: '10s', target: 200 },
+        { duration: '15s', target: 500 },
+        { duration: '15s', target: 1000 },
+        { duration: '10s', target: 2000 },
+        { duration: '10s', target: 0 }
       ],
       gracefulStop: '30s'
     }
@@ -35,7 +36,7 @@ const RPC_B = __ENV.RPC_B_URL || "http://127.0.0.1:18446";
 const WALLET_NAME = __ENV.WALLET_NAME || "loadtest";
 const RPC_A_WALLET = `${RPC_A}/wallet/${encodeURIComponent(WALLET_NAME)}`;
 const MIN_TRUSTED_BALANCE = Number(__ENV.MIN_TRUSTED_BALANCE || "5000");
-const TOP_UP_BLOCKS = Number(__ENV.TOP_UP_BLOCKS || "1200");
+const TOP_UP_BLOCKS = Number(__ENV.TOP_UP_BLOCKS || "300");
 const TX_AMOUNT = Number(__ENV.TX_AMOUNT || "0.00001");
 const FEE_RATE = Number(__ENV.FEE_RATE || "1.0");
 
@@ -109,7 +110,11 @@ export function setup() {
     try {
       rpc(RPC_A, AUTH_A_HEADERS, "loadwallet", [WALLET_NAME]);
     } catch (e) {
-      if (e.message.includes("not found")) {
+      if (
+        e.message.includes("\"code\":-18") ||
+        e.message.includes("not found") ||
+        e.message.includes("Path does not exist")
+      ) {
         rpc(RPC_A, AUTH_A_HEADERS, "createwallet", [WALLET_NAME]);
       } else if (!e.message.includes("already loaded")) {
         throw e;
