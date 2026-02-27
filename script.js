@@ -34,8 +34,10 @@ const RPC_A = __ENV.RPC_A_URL || "http://127.0.0.1:18443";
 const RPC_B = __ENV.RPC_B_URL || "http://127.0.0.1:18446";
 const WALLET_NAME = __ENV.WALLET_NAME || "loadtest";
 const RPC_A_WALLET = `${RPC_A}/wallet/${encodeURIComponent(WALLET_NAME)}`;
-const MIN_TRUSTED_BALANCE = Number(__ENV.MIN_TRUSTED_BALANCE || "1");
-const TOP_UP_BLOCKS = Number(__ENV.TOP_UP_BLOCKS || "101");
+const MIN_TRUSTED_BALANCE = Number(__ENV.MIN_TRUSTED_BALANCE || "5000");
+const TOP_UP_BLOCKS = Number(__ENV.TOP_UP_BLOCKS || "1200");
+const TX_AMOUNT = Number(__ENV.TX_AMOUNT || "0.00001");
+const FEE_RATE = Number(__ENV.FEE_RATE || "1.0");
 
 const COOKIE_A = __ENV.RPC_A_COOKIE || ".devenv/state/bitcoin-node-1/regtest/.cookie";
 const COOKIE_B = __ENV.RPC_B_COOKIE || ".devenv/state/bitcoin-node-2/regtest/.cookie";
@@ -118,7 +120,9 @@ export function setup() {
   const address = rpc(RPC_A_WALLET, AUTH_A_HEADERS, "getnewaddress");
   const balances = rpc(RPC_A_WALLET, AUTH_A_HEADERS, "getbalances");
   const trustedBalance = balances.mine ? balances.mine.trusted : 0;
+  console.log(`Trusted wallet balance: ${trustedBalance} BTC`);
   if (trustedBalance < MIN_TRUSTED_BALANCE) {
+    console.log(`Topping up wallet with ${TOP_UP_BLOCKS} blocks...`);
     rpc(RPC_A, AUTH_A_HEADERS, "generatetoaddress", [TOP_UP_BLOCKS, address]);
   }
 
@@ -129,7 +133,7 @@ export default function (data) {
   try {
     const txid = rpc(RPC_A_WALLET, AUTH_A_HEADERS, "sendtoaddress", [
       data.address,
-      0.001,
+      TX_AMOUNT,
       "",
       "",
       false,
@@ -137,7 +141,7 @@ export default function (data) {
       null,
       "unset",
       null,
-      1.0,
+      FEE_RATE,
       false
     ]);
     sendSuccessRate.add(true);
