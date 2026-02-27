@@ -27,9 +27,9 @@ layout: center
 
 # Why This Exists
 
-- Hard to reproduce heavy load reliably
+- Identify the limits of Bitcoin
+- Find bugs or errors when hitting these limits
 - Public networks are noisy and expensive
-- We need fast, repeatable experiments
 
 <!--
 ~25s
@@ -67,9 +67,8 @@ layout: center
 # Tech Stack
 
 - `Bitcoin Core` on `regtest`
-- `k6` for load generation
-- `devenv` + `Nix` for reproducible setup
-- `TypeScript` scripts for test orchestration
+- `k6` for load testing using js
+- `devenv` + `Nix` for reproducible setup (no Docker)
 
 <div class="mt-6 text-sm opacity-70">Simple local stack, production-grade testing patterns</div>
 
@@ -99,7 +98,7 @@ k6 run script.js
 # Default Test Shape
 
 - ramp: `50 -> 2000 tx/s`
-- duration: `~6.5 min`
+- duration: `~1.5 min`
 - threshold: `>95% send success`
 
 <!--
