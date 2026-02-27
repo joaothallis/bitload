@@ -61,6 +61,28 @@ Explain architecture quickly:
 -->
 
 ---
+layout: center
+---
+
+# Tech Stack
+
+- `Bitcoin Core` on `regtest`
+- `k6` for load generation
+- `devenv` + `Nix` for reproducible setup
+- `TypeScript` scripts for test orchestration
+
+<div class="mt-6 text-sm opacity-70">Simple local stack, production-grade testing patterns</div>
+
+<!--
+~25s
+Keep this slide fast:
+- Bitcoin Core gives realistic node behavior
+- regtest keeps tests deterministic
+- k6 drives controlled traffic load
+- devenv/Nix makes setup consistent across machines
+-->
+
+---
 layout: two-cols
 ---
 
